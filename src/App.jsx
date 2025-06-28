@@ -50,16 +50,18 @@ export default function App() {
           const unsubDoc = onSnapshot(userDocRef, (userDoc) => {
             if (userDoc.exists()) {
               const data = userDoc.data();
-              // Verificación explícita del rol del usuario
               if (data.role === 'client' || data.role === 'provider') {
                 setUser(firebaseUser);
                 setUserData(data);
+                // Si el usuario es proveedor y no está en la página de perfil, lo mandamos a su dashboard.
+                if (data.role === 'provider' && page !== 'providerProfile') {
+                    setPage('providerDashboard');
+                }
               } else {
                 setNotification({ message: "Error en el perfil de usuario. Contacta a soporte." });
                 signOut(auth);
               }
             } else {
-              // Si el documento no existe en Firestore, el perfil está incompleto.
               setNotification({ message: "Tu perfil de usuario no fue encontrado. Por favor, regístrate de nuevo." });
               signOut(auth);
             }
@@ -75,7 +77,8 @@ export default function App() {
     }, []);
 
     const handleNavigate = (newPage, props = {}) => {
-        if (page.startsWith('provider') && newPage === 'profile') {
+        // Lógica de navegación corregida y simplificada
+        if (newPage === 'profile' && userData?.role === 'provider') {
             setPage('providerProfile');
         } else {
             setPage(newPage);
@@ -83,7 +86,10 @@ export default function App() {
         setPageProps(props);
     };
 
-    const handleLogout = async () => { await signOut(auth); };
+    const handleLogout = async () => { 
+        await signOut(auth);
+        setPage('landing'); // Redirige a landing al cerrar sesión
+    };
 
     const handleAuthSubmit = async (e, isLogin) => {
       e.preventDefault();
@@ -185,9 +191,9 @@ export default function App() {
                     if (page === 'providerProfile') {
                         return <ProfilePage userData={userData} handleFileUpload={handleFileUpload} uploadsInProgress={uploadsInProgress} />;
                     }
+                    // Por defecto, el proveedor siempre ve su dashboard
                     return <ProviderDashboard userData={userData} handleLogout={handleLogout} onNavigate={handleNavigate} />;
                 default:
-                    // Si el rol no es válido, no mostramos nada mientras se desloguea.
                     return <Loader />;
             }
         }
