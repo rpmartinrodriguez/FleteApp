@@ -24,7 +24,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app); // Inicializamos Firebase Storage
+const storage = getStorage(app);
 
 // --- Componentes de UI Globales ---
 const Loader = () => ( <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div></div> );
@@ -53,7 +53,6 @@ export default function App() {
               if (data.role === 'client' || data.role === 'provider') {
                 setUser(firebaseUser);
                 setUserData(data);
-                // Si el usuario es proveedor y no está en la página de perfil, lo mandamos a su dashboard.
                 if (data.role === 'provider' && page !== 'providerProfile') {
                     setPage('providerDashboard');
                 }
@@ -77,7 +76,6 @@ export default function App() {
     }, []);
 
     const handleNavigate = (newPage, props = {}) => {
-        // Lógica de navegación corregida y simplificada
         if (newPage === 'profile' && userData?.role === 'provider') {
             setPage('providerProfile');
         } else {
@@ -88,7 +86,7 @@ export default function App() {
 
     const handleLogout = async () => { 
         await signOut(auth);
-        setPage('landing'); // Redirige a landing al cerrar sesión
+        setPage('landing');
     };
 
     const handleAuthSubmit = async (e, isLogin) => {
@@ -191,8 +189,14 @@ export default function App() {
                     if (page === 'providerProfile') {
                         return <ProfilePage userData={userData} handleFileUpload={handleFileUpload} uploadsInProgress={uploadsInProgress} />;
                     }
-                    // Por defecto, el proveedor siempre ve su dashboard
-                    return <ProviderDashboard userData={userData} handleLogout={handleLogout} onNavigate={handleNavigate} />;
+                    // Aquí está la actualización clave: pasamos las props a ProviderDashboard
+                    return <ProviderDashboard 
+                                userData={userData} 
+                                handleLogout={handleLogout} 
+                                onNavigate={handleNavigate} 
+                                db={db} 
+                                setNotification={setNotification}
+                            />;
                 default:
                     return <Loader />;
             }
