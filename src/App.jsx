@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 
 // Importamos nuestras páginas y componentes desde sus archivos separados
 import LandingPage from './pages/LandingPage.jsx';
@@ -27,8 +27,8 @@ const db = getFirestore(app);
 
 // --- Componentes de UI Globales ---
 const Loader = () => (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+    <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
     </div>
 );
 
@@ -39,11 +39,25 @@ const Notification = ({ message, isSuccess, onClear }) => {
     }, [onClear]);
 
     return (
-        <div className={`fixed top-5 right-5 text-white py-2 px-4 rounded-lg shadow-lg z-50 ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}>
-            <p>{message}</p>
+        <div className={`fixed top-5 right-5 text-white py-3 px-5 rounded-lg shadow-2xl z-50 animate-fadeIn ${isSuccess ? 'bg-green-500' : 'bg-red-600'}`}>
+            <p className="font-semibold">{message}</p>
         </div>
     );
 };
+
+const Logo = () => (
+    <div className="flex items-center justify-center gap-3 mb-12">
+        <svg className="w-12 h-12 text-blue-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 16.5V14C14 12.8954 13.1046 12 12 12H11C9.89543 12 9 12.8954 9 14V16.5M12 12V2H8.5C7.11929 2 6 3.11929 6 4.5V10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M20 12L17 9L14 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 12H17.5C18.8807 12 20 13.1193 20 14.5C20 15.8807 18.8807 17 17.5 17H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="6" cy="18" r="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="18" cy="18" r="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span className="text-4xl font-extrabold text-slate-800">FleteApp</span>
+    </div>
+);
+
 
 // --- Componente Principal de la Aplicación ---
 export default function App() {
@@ -104,11 +118,7 @@ export default function App() {
                 }
                 const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
                 const newUserData = {
-                    uid: userCredential.user.uid,
-                    name: data.name,
-                    email: data.email,
-                    role: pageProps.userType,
-                    createdAt: new Date(),
+                    uid: userCredential.user.uid, name: data.name, email: data.email, role: pageProps.userType, createdAt: new Date(),
                     ...(isProvider && { phone: data.phone, vehicleType: data.vehicleType, licensePlate: data.licensePlate })
                 };
                 await setDoc(doc(db, "users", userCredential.user.uid), newUserData);
@@ -182,9 +192,14 @@ export default function App() {
 
     // --- Final JSX Return ---
     return (
-        <div className="min-h-screen bg-gray-100 font-sans flex flex-col items-center justify-center p-4">
+        <div className="min-h-screen font-sans flex flex-col items-center justify-center p-4">
             {notification && <Notification message={notification.message} isSuccess={notification.isSuccess} onClear={() => setNotification(null)} />}
-            {renderPage()}
+            <div className="w-full">
+              <div className="w-full max-w-4xl mx-auto">
+                <Logo />
+              </div>
+              {renderPage()}
+            </div>
             <CreateRequestModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
