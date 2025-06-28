@@ -1,4 +1,5 @@
 import React from 'react';
+import RequestList from '../components/RequestList.jsx'; // Importamos el nuevo componente
 
 // Mensaje que se muestra si el proveedor no está verificado
 const VerificationNotice = ({ status, onNavigate }) => (
@@ -19,7 +20,7 @@ const VerificationNotice = ({ status, onNavigate }) => (
 );
 
 // El panel del proveedor ahora decide qué mostrar basado en el estado de verificación
-export default function ProviderDashboard({ userData, handleLogout, onNavigate }) {
+export default function ProviderDashboard({ userData, handleLogout, onNavigate, db, setNotification }) {
   const isVerified = userData.verificationStatus === 'Verificado';
 
   return (
@@ -40,9 +41,8 @@ export default function ProviderDashboard({ userData, handleLogout, onNavigate }
         {isVerified ? (
           <>
             <h3 className="text-xl font-semibold mb-4">Fletes Disponibles</h3>
-            <div className="text-center text-gray-500 border-2 border-dashed border-gray-300 p-8 rounded-lg">
-              <p>Próximamente: Aquí verás los fletes disponibles para ofertar.</p>
-            </div>
+            {/* Aquí usamos el nuevo componente para mostrar la lista de fletes */}
+            <RequestList db={db} setNotification={setNotification} />
           </>
         ) : (
           <VerificationNotice status={userData.verificationStatus} onNavigate={onNavigate} />
