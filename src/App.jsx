@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 // Importamos nuestras páginas y componentes
@@ -40,33 +40,41 @@ export default function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [notification, setNotification] = useState(null);
     const [uploadsInProgress, setUploadsInProgress] = useState({});
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         setIsLoading(true);
         if (firebaseUser) {
           const userDocRef = doc(db, "users", firebaseUser.uid);
-          // Escuchamos cambios en el perfil del usuario en tiempo real
-          const unsubDoc = onSnapshot(userDocRef, (doc) => {
-            if (doc.exists()) {
-              setUser(firebaseUser);
-              setUserData(doc.data());
+          const unsubDoc = onSnapshot(userDocRef, (userDoc) => {
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              // Verificación explícita del rol del usuario
+              if (data.role === 'client' || data.role === 'provider') {
+                setUser(firebaseUser);
+                setUserData(data);
+              } else {
+                setNotification({ message: "Error en el perfil de usuario. Contacta a soporte." });
+                signOut(auth);
+              }
             } else {
-              signOut(auth); // El perfil no existe, desloguear
+              // Si el documento no existe en Firestore, el perfil está incompleto.
+              setNotification({ message: "Tu perfil de usuario no fue encontrado. Por favor, regístrate de nuevo." });
+              signOut(auth);
             }
             setIsLoading(false);
           });
-          return () => unsubDoc(); // Limpiamos el listener del documento
+          return () => unsubDoc();
         } else {
           setUser(null); setUserData(null); setPage('landing');
           setIsLoading(false);
         }
       });
-      return () => unsubscribe(); // Limpiamos el listener de autenticación
+      return () => unsubscribe();
     }, []);
 
     const handleNavigate = (newPage, props = {}) => {
-        // Si el proveedor está en su panel, 'profile' lo lleva a su perfil.
         if (page.startsWith('provider') && newPage === 'profile') {
             setPage('providerProfile');
         } else {
@@ -109,9 +117,7 @@ export default function App() {
       const filePath = `provider_documents/${user.uid}/${docType}_${file.name}`;
       const storageRef = ref(storage, filePath);
       const uploadTask = uploadBytesResumable(storageRef, file);
-
       setUploadsInProgress(prev => ({ ...prev, [docType]: true }));
-
       uploadTask.on('state_changed',
         (snapshot) => {
           const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
@@ -125,13 +131,9 @@ export default function App() {
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           const userDocRef = doc(db, "users", user.uid);
-          await updateDoc(userDocRef, {
-            [`documents.${docType}`]: downloadURL
-          });
+          await updateDoc(userDocRef, { [`documents.${docType}`]: downloadURL });
           setNotification({ message: `${docType} subido con éxito.`, isSuccess: true });
           setUploadsInProgress(prev => ({ ...prev, [docType]: false }));
-
-          // Lógica para cambiar a "Pendiente de Revisión"
           const updatedDoc = await getDoc(userDocRef);
           const docs = updatedDoc.data().documents;
           if (docs.license && docs.insurance && docs.vehicle) {
@@ -141,6 +143,30 @@ export default function App() {
         }
       );
     };
+    
+    const handleSaveRequest = async (formData) => {
+        if (!user) {
+          setNotification({ message: "Debes iniciar sesión para crear una solicitud." });
+          return;
+        }
+        setIsLoading(true);
+        try {
+          await addDoc(collection(db, "freight_requests"), {
+            ...formData,
+            clientId: user.uid,
+            clientEmail: user.email,
+            status: 'pendiente',
+            createdAt: new Date()
+          });
+          setNotification({ message: "Solicitud creada con éxito.", isSuccess: true });
+          setIsModalOpen(false);
+        } catch (error) {
+          console.error("Error al crear la solicitud:", error);
+          setNotification({ message: "No se pudo crear la solicitud." });
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
     const renderPage = () => {
         if (isLoading) return <Loader />;
@@ -148,14 +174,21 @@ export default function App() {
         if (user && userData) {
             switch (userData.role) {
                 case 'client':
-                    return <ClientDashboard userData={userData} handleLogout={handleLogout} />;
+                    return <ClientDashboard 
+                                userData={userData} 
+                                handleLogout={handleLogout} 
+                                onOpenModal={() => setIsModalOpen(true)}
+                                db={db}
+                                setNotification={setNotification}
+                            />;
                 case 'provider':
                     if (page === 'providerProfile') {
                         return <ProfilePage userData={userData} handleFileUpload={handleFileUpload} uploadsInProgress={uploadsInProgress} />;
                     }
                     return <ProviderDashboard userData={userData} handleLogout={handleLogout} onNavigate={handleNavigate} />;
                 default:
-                    return <LandingPage onNavigate={handleNavigate} />;
+                    // Si el rol no es válido, no mostramos nada mientras se desloguea.
+                    return <Loader />;
             }
         }
 
@@ -174,6 +207,12 @@ export default function App() {
                 {renderPage()}
               </div>
             </div>
+            <CreateRequestModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)}
+                onSave={handleSaveRequest}
+                setNotification={setNotification}
+            />
         </div>
     );
 }
